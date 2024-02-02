@@ -72,12 +72,14 @@ func main() {
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 
+	kalbe := e.Group("/kalbe")
+
 	// Routes
-	e.GET("/kalbe/morning", func(c echo.Context) error {
+	kalbe.GET("/morning", func(c echo.Context) error {
 		return hello(c, client, loc, 1)
 	})
 
-	e.GET("/kalbe/night", func(c echo.Context) error {
+	kalbe.GET("/night", func(c echo.Context) error {
 		return hello(c, client, loc, 2)
 	})
 
@@ -87,7 +89,6 @@ func main() {
 			e.Logger.Fatal(err)
 		}
 	}()
-
 	go monitorConnection()
 
 	scheduler := cron.New(cron.WithLocation(loc))
@@ -158,7 +159,7 @@ func monitorConnection() {
 }
 
 func restartService() {
-	cmd := exec.Command("sudo", "service", "wa-auto", "restart")
+	cmd := exec.Command("sudo", "service", "wa-cronjob", "restart")
 	err := cmd.Run()
 	if err != nil {
 		fmt.Println("Error restarting service:", err)
