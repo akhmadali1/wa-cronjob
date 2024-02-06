@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 	"wa-auto/model"
@@ -83,6 +85,10 @@ func main() {
 		return hello(c, client, loc, 2)
 	})
 
+	kalbe.GET("/name", func(c echo.Context) error {
+		return helloChangeName(c, client, loc)
+	})
+
 	// Start server in a goroutine
 	go func() {
 		if err := e.Start(":1323"); err != nil {
@@ -100,6 +106,7 @@ func main() {
 	// gunakan crontab string untuk mengatur jadwal
 	scheduler.AddFunc("0 07 * * 1-5", func() { hitRoutineService("kalbe/morning") })
 	scheduler.AddFunc("0 20 * * *", func() { hitRoutineService("kalbe/night") })
+	scheduler.AddFunc("0 00 * * *", func() { hitRoutineService("kalbe/name") })
 
 	// start scheduler
 	go scheduler.Start()
@@ -148,6 +155,36 @@ func hello(c echo.Context, client *whatsmeow.Client, loc *time.Location, dayNigh
 	return c.JSON(http.StatusOK, echo.Map{"Message": "Success"})
 }
 
+func helloChangeName(c echo.Context, client *whatsmeow.Client, loc *time.Location) error {
+	infoGroup, err := client.GetGroupInfoFromLink("https://chat.whatsapp.com/JU0uMNWKCSI3v0ZCqp2hKu")
+	if err != nil {
+		fmt.Println("Error get info group:", err)
+		return c.JSON(http.StatusInternalServerError, echo.Map{"Message": "Failed to get info group"})
+	}
+
+	headerGroup := infoGroup.GroupName.Name
+	headerGroupSplit := strings.Split(headerGroup, "#")
+	templateNameGroup := "AMIN AJA DULU #"
+	if len(headerGroupSplit) > 1 {
+		templateNameGroup = headerGroupSplit[0] + "#"
+	} else {
+		fmt.Println("No '#' found in the string")
+	}
+
+	timeNow := time.Now().In(loc)
+
+	t1 := Date(loc, timeNow.Year(), int(timeNow.Month()), timeNow.Day())
+	t2 := Date(loc, 2024, 2, 16)
+	days := t2.Sub(t1).Hours() / 24
+
+	if err := client.SetGroupName(infoGroup.JID, templateNameGroup+strconv.Itoa(int(days))); err != nil {
+		fmt.Println("Error sending message:", err)
+		return c.JSON(http.StatusInternalServerError, echo.Map{"Message": "Failed to send message"})
+	}
+
+	return c.JSON(http.StatusOK, echo.Map{"Message": "Success"})
+}
+
 func monitorConnection() {
 	for {
 		time.Sleep(time.Second * 10)
@@ -166,8 +203,8 @@ func restartService() {
 	}
 }
 
-func hitRoutineService(dayNight string) {
-	urlHit := fmt.Sprintf("localhost:1323/%s", dayNight)
+func hitRoutineService(apiString string) {
+	urlHit := fmt.Sprintf("localhost:1323/%s", apiString)
 	cmd := exec.Command("curl", "-v", "-X", "GET", urlHit, "-H", "Content-Type: application/json")
 	err := cmd.Run()
 	if err != nil {
